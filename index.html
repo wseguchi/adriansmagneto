@@ -181,34 +181,55 @@
         </form>
 
         <script>
-        (function () {
-          var form = document.getElementById('contact-form');
-          if (!form) return;
-
-          form.addEventListener('submit', async function (e) {
-            if (!window.fetch) return; // fallback to normal submit
-            e.preventDefault();
-            var status = document.getElementById('form-status');
-            status.textContent = 'Sending…';
-
-            try {
-              var data = new FormData(form);
-              var res = await fetch(form.action, { method: 'POST', body: data, headers: { 'Accept': 'application/json' } });
-              if (res.ok) {
-                status.textContent = 'Thanks! Your message has been sent.';
-                form.reset();
-              } else {
-                var json = await res.json().catch(function(){ return {}; });
-                status.textContent = (json && json.errors && json.errors.length)
-                  ? json.errors.map(function(e){return e.message;}).join(', ')
-                  : 'Oops, something went wrong. Please try again later.';
+          (function () {
+            var form = document.getElementById('contact-form');
+            if (!form) return;
+          
+            form.addEventListener('submit', async function (e) {
+              // If you're testing from file://, skip AJAX and do a normal post
+              if (!window.fetch || location.protocol === 'file:') return;
+          
+              e.preventDefault();
+              var status = document.getElementById('form-status');
+              status.textContent = 'Sending…';
+          
+              try {
+                var data = new FormData(form);
+                var res = await fetch(form.action, {
+                  method: 'POST',
+                  body: data,
+                  headers: { 'Accept': 'application/json' }
+                });
+          
+                // Try to parse JSON; if not JSON, capture text
+                var contentType = res.headers.get('content-type') || '';
+                var payload = null;
+                try {
+                  payload = contentType.includes('application/json') ? await res.json() : { text: await res.text() };
+                } catch (e) { payload = null; }
+          
+                if (res.ok) {
+                  status.textContent = 'Thanks! Your message has been sent.';
+                  form.reset();
+                  return;
+                }
+          
+                // Not OK — show something useful
+                var msg = 'Error ' + res.status + ' ' + res.statusText;
+                if (payload && payload.errors && payload.errors.length) {
+                  msg += ': ' + payload.errors.map(function (e) { return e.message; }).join(', ');
+                } else if (payload && payload.text) {
+                  msg += ' — ' + payload.text.slice(0, 300);
+                }
+                status.textContent = msg;
+          
+              } catch (err) {
+                status.textContent = 'Network error: ' + (err && err.message ? err.message : 'please try again.');
               }
-            } catch (err) {
-              status.textContent = 'Network error. Please try again.';
-            }
-          });
-        })();
-        </script>
+            });
+          })();
+      </script>
+
 
       </div>
     </div>
